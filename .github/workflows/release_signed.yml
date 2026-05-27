@@ -3,6 +3,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release (e.g. v0.15.0)'
+        required: false
+        default: ''
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,14 +27,16 @@ jobs:
           KEY_PASS: ${{ secrets.KEY_PASS }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > /tmp/termux-dev.p12
+          APK=$(find app/build/outputs/apk -name "*.apk" ! -name "*-signed.apk" | head -1)
           $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | tail -1)/apksigner sign \
             --ks /tmp/termux-dev.p12 --ks-type PKCS12 \
             --ks-pass "pass:$KEYSTORE_PASS" --ks-key-alias "$KEY_ALIAS" \
             --key-pass "pass:$KEY_PASS" \
             --out app/build/outputs/apk/release/termux-widget-signed.apk \
-            app/build/outputs/apk/release/app-release-unsigned.apk
+            "$APK"
           rm /tmp/termux-dev.p12
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
           files: app/build/outputs/apk/release/termux-widget-signed.apk
